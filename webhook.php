@@ -1,19 +1,32 @@
 <?php
 require 'db.php';
 
-$data = json_decode(file_get_contents("php://input"), true);
+$payload = file_get_contents("php://input");
 
-// Example expected fields (may vary slightly)
-$transaction_id = $data['transaction_id'] ?? null;
-$status = $data['status'] ?? null;
-$provider_reference = $data['reference'] ?? null;
+// Log everything FIRST
+file_put_contents(
+    "webhook_debug.log",
+    date('Y-m-d H:i:s') . " | " . $payload . PHP_EOL,
+    FILE_APPEND
+);
 
-if ($transaction_id && $status) {
-    $stmt = $pdo->prepare("UPDATE contributions 
-        SET status = ?, provider_reference = ?
-        WHERE transaction_id = ?");
-    $stmt->execute([$status, $provider_reference, $transaction_id]);
+$data = json_decode($payload, true);
+
+if (!isset($data['order_id'], $data['payment_status'])) {
+    http_response_code(200);
+    exit;
 }
 
+$orderId = $data['order_id'];
+$status  = $data['payment_status'];
+
+// Update DB
+$stmt = $pdo->prepare("
+    UPDATE contributions 
+    SET status = ?
+    WHERE transaction_id = ?
+");
+$stmt->execute([$status, $orderId]);
+
 http_response_code(200);
-echo "Webhook received";
+echo "OK";
